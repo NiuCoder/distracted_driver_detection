@@ -144,7 +144,9 @@ class SplitTrainingDataset(torch.utils.data.Dataset):
         else:
             self.transform = transform_data_normal()
         img = self.transform(img)
-        label = self.class_names.index(class_name)
+        label = np.zeros(len(self.classesnames))
+        class_index = self.class_names.index(class_name)
+        label[class_index] = 1
         return img,label
 
 # Customize pretrained model 
