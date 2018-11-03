@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 # Global Variable
 csv_path = 'driver_imgs_list.csv'
 train_img_path = os.path.join('imgs','train')
-test_img_path = os.path.join('imgs','testroot2')
+test_img_path = os.path.join('imgs','testroot')
 cache_path = os.path.join('cache')
 result_path = os.path.join('result')
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -37,7 +37,7 @@ use_cuda = torch.cuda.is_available()
     
 # Hyperparameters
 N_EPOCHS = 10
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 WORKERS = 0
 LR = 1e-5
 DROP_RATE = 0.5
@@ -47,7 +47,8 @@ criterion = nn.CrossEntropyLoss()
 # get unique_drivers and driver_img_dict from csv file
 def get_driver_img_map(csv_path):
     driver_img_list = pd.read_csv(csv_path)
-    unique_drivers = list(set(driver_img_list['subject'])).sort()
+    unique_drivers = list(set(driver_img_list['subject']))
+    unique_drivers.sort()
     driver_img_dict = {}
     for driver_id in unique_drivers:
         img_list = driver_img_list[driver_img_list['subject']==driver_id]['img'].values.tolist()
@@ -124,9 +125,9 @@ class SplitTrainingDataset(torch.utils.data.Dataset):
     def __init__(self, driver_img_list, img_path, split_img_list, tSet=False):
         self.img_path = img_path
         self.driver_img_list = driver_img_list
-        classesnames = list(set(driver_img_list['classname']))
-        classesnames.sort()
-        self.class_names = classesnames
+        classnames = list(set(driver_img_list['classname']))
+        classnames.sort()
+        self.class_names = classnames
         self.split_img_list = split_img_list
         self.tSet = tSet
         super(SplitTrainingDataset, self).__init__()
@@ -144,9 +145,10 @@ class SplitTrainingDataset(torch.utils.data.Dataset):
         else:
             self.transform = transform_data_normal()
         img = self.transform(img)
-        label = np.zeros(len(self.classesnames))
+        #label = np.zeros(len(self.class_names))
         class_index = self.class_names.index(class_name)
-        label[class_index] = 1
+        #label[class_index] = 1
+        label = class_index
         return img,label
 
 # Customize pretrained model 
@@ -365,6 +367,7 @@ if  __name__ == "__main__":
         sys.exit()
     if sys.argv[1] == 'train':
         print('train process')
+
         # Train process
         #vgg16bn = models.vgg16_bn(pretrained=True)
         #my_vgg16bn = Myvgg(vgg16bn, 'vgg16bn')
