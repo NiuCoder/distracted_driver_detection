@@ -148,6 +148,72 @@ def generate_train_data(dataframe, nbr_classes, img_root_path, shuffle=True,
     return X_train, Y_train
 
 
+def generate_train_data_triplet(dataframe, nbr_classes, img_root_path, shuffle=True, mode='train',
+                        augment=False, img_width=224, img_height=224, model='vgg16'):
+    N = dataframe.shape[0]
+    if shuffle:
+        dataframe = sk_shuffle(dataframe)
+    X_anchor = np.zeros((N, img_width, img_height, 3))
+    X_positive = np.zeros((N, img_width, img_height, 3))
+    X_negative = np.zeros((N, img_width, img_height, 3))
+    Y_train = np.zeros((N, nbr_classes))
+    Y_pseudo_label = np.zeros((N, 1))
+    for index, row in dataframe.iterrows():
+        driver_id = row['subject']
+        classname = row['classname']
+        label = int(classname[-1])
+        img_name = row['img']
+        img_path = os.path.join(img_root_path, 'train', classname, img_name)
+
+        img = load_img(img_path, img_width)
+
+        if mode == 'train':
+            same_driver_df = dataframe[dataframe['subject']==driver_id]
+            classname_list = same_driver_df['classname'].unique().tolist()
+            # find positive sample which has the same subject and the same classname but different img name
+            same_driver_same_class_df = same_driver_df[same_driver_df['classname']==classname]
+            same_driver_same_class_diff_img_df = same_driver_same_class_df[same_driver_same_class_df['img']!=img_name]
+            assert len(same_driver_same_class_diff_img_df) != 0, 'driver:{},classname:{},only has one img:{}'.format(driver_id,classname,img_name)
+            positive_row = same_driver_same_class_diff_img_df.sample(1)
+            same_driver_same_class_df = []
+            same_driver_same_class_diff_img_df = []
+            # find negative sample which has the same subject and the different classname also different img name (Hard negative)
+            classname_list.remove(classname)
+            assert classname_list != [], 'driver: {},only has one class: {}'.format(driver_id,classname)
+            other_classname = random.choice(classname_list)
+            hard_negative_df = same_driver_df[same_driver_df['classname']==other_classname]
+            negative_row = hard_negative_df.sample(1)
+            hard_negative_df = []
+            same_driver_df = []
+
+            positive_img_path = os.path.join(img_root_path, 'train', positive_row['classname'].values[0], positive_row['img'].values[0])
+            negative_img_path = os.path.join(img_root_path, 'train', negative_row['classname'].values[0], negative_row['img'].values[0])
+            positive_img = load_img(positive_img_path, img_width)
+            negative_img = load_img(negative_img_path, img_width)
+        elif mode == 'valid':
+            positive_img = img
+            negative_img = img
+        
+        X_anchor[index] = img
+        X_positive[index] = positive_img
+        X_negative[index] = negative_img
+        Y_train[index, label] = 1
+
+    X_anchor = X_anchor.astype(np.float16)
+    X_positive = X_positive.astype(np.float16)
+    X_negative = X_negative.astype(np.float16)
+    if model == 'vgg16':
+        X_anchor = vgg16_preprocess_input(X_anchor)
+        X_positive = vgg16_preprocess_input(X_positive)
+        X_negative = vgg16_preprocess_input(X_negative)
+    elif model == 'inceptv3':
+        X_anchor = incept3_preprocess_input(X_anchor)
+        X_positive = incept3_preprocess_input(X_positive)
+        X_negative = incept3_preprocess_input(X_negative)
+
+    return ([X_anchor,X_positive,X_positive], [Y_train,Y_pseudo_label])
+
+
 def batch_generator(dataframe, nbr_classes, img_root_path, batch_size, shuffle=True, augment=False,
                      return_label=True, img_width=224, img_height=224, model='vgg16'):
     N = dataframe.shape[0]
